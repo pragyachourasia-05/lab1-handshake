@@ -1,0 +1,8 @@
+# Lab 1 Run Log
+
+## 2026-09-18
+
+- Created the initial repository skeleton for Pair 23.
+- Pair configuration: PORT_BASE=9230, SEED=23.
+- CITY_SET: San Francisco, Oakland, San Jose.
+- Next step: design the shared database schema and authentication flow.
