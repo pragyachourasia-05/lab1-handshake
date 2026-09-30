@@ -1,11 +1,13 @@
 fastapi
 uvicorn[standard]
-sqlalchemy
+sqlalchemy>=2.0
 pymysql
+cryptography
 python-dotenv
-pydantic-settings
-passlib[bcrypt]
+bcrypt>=4.0
 python-jose[cryptography]
 python-multipart
+email-validator
 faker
 httpx
+pytest
