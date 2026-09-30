@@ -1,1 +1,1 @@
-"""Deterministic seed generator using SEED and CITY_SET."""
+"""Shared deterministic seed generator will be implemented with both partners."""

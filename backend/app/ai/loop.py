@@ -1,1 +1,1 @@
-"""Hand-built assistant agent loop."""
+"""Part B assistant loop will be implemented jointly."""

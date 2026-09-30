@@ -10,4 +10,3 @@ backend/app/uploads/*
 dist/
 build/
 *.log
-upload/

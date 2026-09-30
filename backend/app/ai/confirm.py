@@ -1,1 +1,1 @@
-"""Confirmation gate for state-changing assistant actions."""
+"""Part C confirmation gate will be implemented jointly."""

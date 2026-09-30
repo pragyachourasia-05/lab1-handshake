@@ -1,8 +1,8 @@
 # Lab 1 Run Log
 
-## 2026-09-18
+## 2026-09-30
 
-- Created the initial repository skeleton for Pair 23.
-- Pair configuration: PORT_BASE=9230, SEED=23.
+- Implemented shared configuration, database models, schemas, bcrypt/JWT authentication, and student APIs.
+- Pair configuration: PAIR=23, PORT_BASE=9230, SEED=23.
 - CITY_SET: San Francisco, Oakland, San Jose.
-- Next step: design the shared database schema and authentication flow.
+- Next: partner adds company routes; both partners integrate the React frontend.

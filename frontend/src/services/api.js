@@ -1,1 +1,1 @@
-// Axios client and endpoint wrappers will be added during Week 1.
+// Frontend API wrappers will be added after the backend contract is reviewed.

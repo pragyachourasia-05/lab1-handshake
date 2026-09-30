@@ -10,4 +10,4 @@
 
 ## Seed counts
 
-To be completed after the seed generator is implemented.
+To be completed after the shared seed generator is implemented.

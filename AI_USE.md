@@ -1,6 +1,6 @@
 # AI Use Log
 
-Each partner will document assistant use, at least one incorrect output, how it was detected, and how it was fixed.
+Each partner must document assistant use, one incorrect output, how it was detected, and the fix.
 
 ## Partner A
 

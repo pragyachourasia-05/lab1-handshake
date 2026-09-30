@@ -1,109 +1,76 @@
-"""Password hashing (bcrypt), JWT issue/verify, and auth dependencies."""
-import uuid
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 import bcrypt
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import config
-from app.database import get_db
-from app.models import Company, RevokedToken, Student
+from .config import JWT_ALGORITHM, JWT_EXPIRE_MINUTES, JWT_SECRET
+from .database import get_db
+from .models import Company, Student
 
-bearer_scheme = HTTPBearer(auto_error=False)
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/student/login")
 
 
-# ---------- passwords ----------
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
-def verify_password(password: str, password_hash: str) -> bool:
+def verify_password(password: str, hashed_password: str) -> bool:
     try:
-        return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
-    except ValueError:
+        return bcrypt.checkpw(password.encode("utf-8"), hashed_password.encode("utf-8"))
+    except (ValueError, TypeError):
         return False
 
 
-# ---------- tokens ----------
-def create_access_token(subject_id: int, role: str) -> str:
-    now = datetime.now(timezone.utc)
-    payload = {
-        "sub": str(subject_id),
-        "role": role,  # "student" or "company"
-        "jti": uuid.uuid4().hex,
-        "iat": now,
-        "exp": now + timedelta(minutes=config.ACCESS_TOKEN_EXPIRE_MINUTES),
-    }
-    return jwt.encode(payload, config.JWT_SECRET, algorithm=config.JWT_ALGORITHM)
+def create_access_token(user_id: int, role: str) -> str:
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=JWT_EXPIRE_MINUTES)
+    payload = {"sub": f"{role}:{user_id}", "role": role, "exp": expires_at}
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
-def decode_token(token: str) -> dict:
+def decode_identity(token: str) -> dict[str, Any]:
+    credentials_error = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid or expired authentication token",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
     try:
-        return jwt.decode(token, config.JWT_SECRET, algorithms=[config.JWT_ALGORITHM])
-    except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        subject = payload.get("sub")
+        role = payload.get("role")
+        if not subject or role not in {"student", "company"}:
+            raise credentials_error
+        subject_role, raw_id = subject.split(":", 1)
+        if subject_role != role:
+            raise credentials_error
+        return {"role": role, "user_id": int(raw_id)}
+    except (JWTError, ValueError, IndexError):
+        raise credentials_error
 
 
-def revoke_token(db: Session, token: str) -> None:
-    claims = decode_token(token)
-    if not db.get(RevokedToken, claims["jti"]):
-        db.add(
-            RevokedToken(
-                jti=claims["jti"],
-                expires_at=datetime.fromtimestamp(claims["exp"], tz=timezone.utc).replace(
-                    tzinfo=None
-                ),
-            )
-        )
-        db.commit()
-
-
-# ---------- dependencies ----------
-def get_token_claims(
-    creds: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+def get_current_identity(
+    token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
-) -> dict:
-    if creds is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    claims = decode_token(creds.credentials)
-    if db.get(RevokedToken, claims["jti"]):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has been signed out",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    claims["raw"] = creds.credentials
-    return claims
+) -> dict[str, Any]:
+    identity = decode_identity(token)
+    model = Student if identity["role"] == "student" else Company
+    user = db.get(model, identity["user_id"])
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authenticated user no longer exists")
+    return {**identity, "user": user}
 
 
-def get_current_student(
-    claims: dict = Depends(get_token_claims), db: Session = Depends(get_db)
-) -> Student:
-    if claims.get("role") != "student":
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Student access only")
-    student = db.get(Student, int(claims["sub"]))
-    if student is None:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Account no longer exists")
-    return student
+def require_student(identity: dict[str, Any] = Depends(get_current_identity)) -> dict[str, Any]:
+    if identity["role"] != "student":
+        raise HTTPException(status_code=403, detail="Student access is required")
+    return identity
 
 
-def get_current_company(
-    claims: dict = Depends(get_token_claims), db: Session = Depends(get_db)
-) -> Company:
-    if claims.get("role") != "company":
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Company access only")
-    company = db.get(Company, int(claims["sub"]))
-    if company is None:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Account no longer exists")
-    return company
+def require_company(identity: dict[str, Any] = Depends(get_current_identity)) -> dict[str, Any]:
+    if identity["role"] != "company":
+        raise HTTPException(status_code=403, detail="Company access is required")
+    return identity

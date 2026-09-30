@@ -1,1 +1,1 @@
-// Shared authentication state will be added during Week 1.
+// Shared frontend authentication state will be added during integration.

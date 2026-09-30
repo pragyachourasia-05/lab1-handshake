@@ -1,219 +1,137 @@
-"""Shared SQLAlchemy models: students, companies, jobs, applications,
-events, event registrations, preferences, saved items, revoked tokens.
-
-Conventions (agree on these with your partner):
-- job.category   in {"full_time", "part_time", "on_campus", "internship"}
-- application.status in {"Pending", "Reviewed", "Declined"}
-- job.salary is annual USD (integer) so the AI assistant can compare easily
-- student.skills / job.skills / event.eligible_majors are comma-separated text
-"""
 from datetime import date, datetime, time
 
-from sqlalchemy import (
-    Boolean,
-    Date,
-    DateTime,
-    Float,
-    ForeignKey,
-    Integer,
-    String,
-    Text,
-    Time,
-    UniqueConstraint,
-    func,
-)
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, String, Text, Time
+from sqlalchemy.orm import relationship
 
-from app.database import Base
-
-JOB_CATEGORIES = ("full_time", "part_time", "on_campus", "internship")
-APPLICATION_STATUSES = ("Pending", "Reviewed", "Declined")
+from .database import Base
 
 
 class Student(Base):
     __tablename__ = "students"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(120))
-    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
-    password_hash: Mapped[str] = mapped_column(String(255))
-    college_name: Mapped[str] = mapped_column(String(200), index=True)
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(150), nullable=False)
+    email = Column(String(255), unique=True, index=True, nullable=False)
+    hashed_password = Column(String(255), nullable=False)
+    college = Column(String(200), nullable=False)
+    date_of_birth = Column(Date, nullable=True)
+    city = Column(String(100), nullable=True)
+    state = Column(String(100), nullable=True)
+    country = Column(String(100), nullable=True)
+    career_objective = Column(Text, nullable=True)
+    degree = Column(String(150), nullable=True)
+    major = Column(String(150), nullable=True)
+    graduation_year = Column(Integer, nullable=True)
+    cgpa = Column(Float, nullable=True)
+    experience = Column(Text, nullable=True)
+    phone = Column(String(50), nullable=True)
+    skills = Column(Text, nullable=True)
+    profile_picture = Column(String(500), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-    date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
-    city: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    state: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    country: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    career_objective: Mapped[str | None] = mapped_column(Text, nullable=True)
-    degree: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    major: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
-    graduation_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    cgpa: Mapped[float | None] = mapped_column(Float, nullable=True)
-    experience: Mapped[str | None] = mapped_column(Text, nullable=True)
-    phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
-    skills: Mapped[str | None] = mapped_column(Text, nullable=True)
-    profile_picture: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-
-    preferences: Mapped["StudentPreference | None"] = relationship(
-        back_populates="student", uselist=False, cascade="all, delete-orphan"
-    )
-    applications: Mapped[list["Application"]] = relationship(
-        back_populates="student", cascade="all, delete-orphan"
-    )
-    registrations: Mapped[list["EventRegistration"]] = relationship(
-        back_populates="student", cascade="all, delete-orphan"
-    )
-    saved_items: Mapped[list["SavedItem"]] = relationship(
-        back_populates="student", cascade="all, delete-orphan"
-    )
+    applications = relationship("Application", back_populates="student")
+    registrations = relationship("EventRegistration", back_populates="student")
+    preferences = relationship("StudentPreference", back_populates="student", uselist=False)
+    saved_items = relationship("SavedItem", back_populates="student")
 
 
 class Company(Base):
     __tablename__ = "companies"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(200), index=True)
-    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
-    password_hash: Mapped[str] = mapped_column(String(255))
-    location: Mapped[str] = mapped_column(String(200))
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    contact_phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
-    website: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    profile_picture: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(200), nullable=False)
+    email = Column(String(255), unique=True, index=True, nullable=False)
+    hashed_password = Column(String(255), nullable=False)
+    location = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    contact_information = Column(String(500), nullable=True)
+    profile_picture = Column(String(500), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-    jobs: Mapped[list["Job"]] = relationship(
-        back_populates="company", cascade="all, delete-orphan"
-    )
-    events: Mapped[list["Event"]] = relationship(
-        back_populates="company", cascade="all, delete-orphan"
-    )
+    jobs = relationship("Job", back_populates="company")
+    events = relationship("Event", back_populates="company")
 
 
 class Job(Base):
     __tablename__ = "jobs"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    company_id: Mapped[int] = mapped_column(
-        ForeignKey("companies.id", ondelete="CASCADE"), index=True
-    )
-    title: Mapped[str] = mapped_column(String(200), index=True)
-    description: Mapped[str] = mapped_column(Text)
-    category: Mapped[str] = mapped_column(String(20), index=True)
-    location: Mapped[str] = mapped_column(String(200))
-    city: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
-    is_remote: Mapped[bool] = mapped_column(Boolean, default=False)
-    salary: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    skills: Mapped[str | None] = mapped_column(Text, nullable=True)
-    posting_date: Mapped[date] = mapped_column(Date, default=date.today)
-    deadline: Mapped[date | None] = mapped_column(Date, nullable=True)
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
+    title = Column(String(200), nullable=False, index=True)
+    posting_date = Column(Date, default=date.today, nullable=False)
+    deadline = Column(Date, nullable=True, index=True)
+    location = Column(String(150), nullable=False, index=True)
+    salary = Column(Float, nullable=True)
+    description = Column(Text, nullable=False)
+    category = Column(String(50), nullable=False, index=True)
+    skills = Column(Text, nullable=True)
+    remote = Column(Boolean, default=False, nullable=False)
 
-    company: Mapped[Company] = relationship(back_populates="jobs")
-    applications: Mapped[list["Application"]] = relationship(
-        back_populates="job", cascade="all, delete-orphan"
-    )
+    company = relationship("Company", back_populates="jobs")
+    applications = relationship("Application", back_populates="job")
 
 
 class Application(Base):
     __tablename__ = "applications"
-    __table_args__ = (UniqueConstraint("student_id", "job_id", name="uq_student_job"),)
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    student_id: Mapped[int] = mapped_column(
-        ForeignKey("students.id", ondelete="CASCADE"), index=True
-    )
-    job_id: Mapped[int] = mapped_column(
-        ForeignKey("jobs.id", ondelete="CASCADE"), index=True
-    )
-    resume_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    status: Mapped[str] = mapped_column(String(20), default="Pending", index=True)
-    applied_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
+    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False)
+    resume_path = Column(String(500), nullable=False)
+    original_filename = Column(String(255), nullable=False)
+    applied_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    status = Column(String(20), default="Pending", nullable=False)
 
-    student: Mapped[Student] = relationship(back_populates="applications")
-    job: Mapped[Job] = relationship(back_populates="applications")
+    student = relationship("Student", back_populates="applications")
+    job = relationship("Job", back_populates="applications")
 
 
 class Event(Base):
     __tablename__ = "events"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    company_id: Mapped[int] = mapped_column(
-        ForeignKey("companies.id", ondelete="CASCADE"), index=True
-    )
-    name: Mapped[str] = mapped_column(String(200), index=True)
-    description: Mapped[str] = mapped_column(Text)
-    event_date: Mapped[date] = mapped_column(Date, index=True)
-    event_time: Mapped[time | None] = mapped_column(Time, nullable=True)
-    location: Mapped[str] = mapped_column(String(200))
-    city: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
-    eligibility: Mapped[str | None] = mapped_column(Text, nullable=True)
-    eligible_majors: Mapped[str | None] = mapped_column(Text, nullable=True)
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
+    name = Column(String(200), nullable=False, index=True)
+    description = Column(Text, nullable=False)
+    event_date = Column(Date, nullable=False, index=True)
+    event_time = Column(Time, nullable=True)
+    location = Column(String(200), nullable=False)
+    eligibility = Column(String(500), nullable=True)
 
-    company: Mapped[Company] = relationship(back_populates="events")
-    registrations: Mapped[list["EventRegistration"]] = relationship(
-        back_populates="event", cascade="all, delete-orphan"
-    )
+    company = relationship("Company", back_populates="events")
+    registrations = relationship("EventRegistration", back_populates="event")
 
 
 class EventRegistration(Base):
     __tablename__ = "event_registrations"
-    __table_args__ = (UniqueConstraint("student_id", "event_id", name="uq_student_event"),)
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    student_id: Mapped[int] = mapped_column(
-        ForeignKey("students.id", ondelete="CASCADE"), index=True
-    )
-    event_id: Mapped[int] = mapped_column(
-        ForeignKey("events.id", ondelete="CASCADE"), index=True
-    )
-    registered_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    id = Column(Integer, primary_key=True, index=True)
+    event_id = Column(Integer, ForeignKey("events.id"), nullable=False)
+    student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
+    registered_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-    student: Mapped[Student] = relationship(back_populates="registrations")
-    event: Mapped[Event] = relationship(back_populates="registrations")
+    event = relationship("Event", back_populates="registrations")
+    student = relationship("Student", back_populates="registrations")
 
 
 class StudentPreference(Base):
-    """Saved job/event preferences; read by the AI tool get_student_preferences."""
-
     __tablename__ = "student_preferences"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    student_id: Mapped[int] = mapped_column(
-        ForeignKey("students.id", ondelete="CASCADE"), unique=True
-    )
-    preferred_categories: Mapped[str | None] = mapped_column(Text, nullable=True)
-    preferred_cities: Mapped[str | None] = mapped_column(Text, nullable=True)
-    preferred_skills: Mapped[str | None] = mapped_column(Text, nullable=True)
-    min_salary: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    remote_ok: Mapped[bool] = mapped_column(Boolean, default=False)
-    event_interests: Mapped[str | None] = mapped_column(Text, nullable=True)
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("students.id"), unique=True, nullable=False)
+    preferred_cities = Column(String(500), nullable=True)
+    preferred_categories = Column(String(500), nullable=True)
+    preferred_skills = Column(String(500), nullable=True)
 
-    student: Mapped[Student] = relationship(back_populates="preferences")
+    student = relationship("Student", back_populates="preferences")
 
 
 class SavedItem(Base):
-    """Target of the AI tool save_job_or_event."""
-
     __tablename__ = "saved_items"
-    __table_args__ = (
-        UniqueConstraint("student_id", "item_type", "item_id", name="uq_saved_item"),
-    )
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    student_id: Mapped[int] = mapped_column(
-        ForeignKey("students.id", ondelete="CASCADE"), index=True
-    )
-    item_type: Mapped[str] = mapped_column(String(10))  # "job" or "event"
-    item_id: Mapped[int] = mapped_column(Integer)
-    saved_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
+    item_type = Column(String(20), nullable=False)
+    item_id = Column(Integer, nullable=False)
 
-    student: Mapped[Student] = relationship(back_populates="saved_items")
-
-
-class RevokedToken(Base):
-    """JWT ids invalidated by sign out."""
-
-    __tablename__ = "revoked_tokens"
-
-    jti: Mapped[str] = mapped_column(String(64), primary_key=True)
-    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    student = relationship("Student", back_populates="saved_items")
