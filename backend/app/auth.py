@@ -3,7 +3,7 @@ from typing import Any
 
 import bcrypt
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -12,9 +12,7 @@ from .config import JWT_ALGORITHM, JWT_EXPIRE_MINUTES, JWT_SECRET
 from .database import get_db
 from .models import Company, Student
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/student/login")
-
-
+security = HTTPBearer()
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
@@ -53,10 +51,10 @@ def decode_identity(token: str) -> dict[str, Any]:
 
 
 def get_current_identity(
-    token: str = Depends(oauth2_scheme),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    identity = decode_identity(token)
+    identity = decode_identity(credentials.credentials)
     model = Student if identity["role"] == "student" else Company
     user = db.get(model, identity["user_id"])
     if user is None:
